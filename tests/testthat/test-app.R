@@ -48,3 +48,22 @@ test_that("outputs wait quietly before there is anything to show", {
     expect_error(output$acc_table, class = "shiny.silent.error")
   })
 })
+
+test_that("the interface records roles and builds a shifted bridge from them", {
+  skip_if_not_installed("shiny")
+  shiny::testServer(app_server("en"), {
+    session$setInputs(source = "sim", load = 1)
+    session$setInputs(cal_ind = "x2", cal_lag = 30, cal_tr = "dlog", cal_role = "leading", cal_apply = 1)
+    expect_equal(roles(rv$data)[["x2"]], "leading")
+    expect_match(paste(rv$data_code, collapse = "\n"), "set_role\\(dat, x2 = \"leading\"\\)")
+    session$setInputs(cal_ind = "x1", cal_lag = 15, cal_tr = "dlog", cal_role = "coincident", cal_apply = 2)
+    session$setInputs(pick_role = c("leading", "coincident"), fill_role = 1)
+    session$setInputs(
+      as_of = as.Date("2015-08-20"), model_type = "bridge", model_ind = c("x1", "x2"),
+      n_lags = 3, n_factors = 1, shift_leading = 2, add_model = 1
+    )
+    expect_equal(rv$models[[1]]@shift, c(x2 = 2))
+    expect_match(rv$codes[1], "shift = c\\(x2 = 2\\)")
+    expect_true("role" %in% names(output$meta_table) || grepl("leading", output$meta_table))
+  })
+})

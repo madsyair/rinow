@@ -8,6 +8,7 @@ bridge_model(
   indicators,
   target_lag = TRUE,
   start = "2002-01-01",
+  shift = NULL,
   name = "Bridge"
 )
 }
@@ -17,6 +18,9 @@ bridge_model(
 \item{target_lag}{Include the lagged target?}
 
 \item{start}{First quarter of the estimation sample.}
+
+\item{shift}{Optional named whole numbers of months (0 to 24) by which
+indicators are moved later, usually their lead over the target cycle.}
 
 \item{name}{Label.}
 }
@@ -29,6 +33,14 @@ its own lag). Months not yet released are filled with AR forecasts of the
 stationary monthly series before aggregation. When the previous quarter is
 not released, its growth is first predicted with the same equation.
 }
+\details{
+A leading indicator can enter with a shift: `shift = c(stocks = 3)` uses,
+for each month, the value of the stock index three months earlier, so that
+the quarter being nowcast is described by data that lead it and are
+already released (lag-shifting, as for the components of composite
+leading indicators in Gyomai and Guidetti 2012).
+}
 \examples{
 bridge_model(c("x1", "x2"))
+bridge_model(c("x1", "x2"), shift = c(x2 = 3))
 }

@@ -14,7 +14,8 @@ nowcast_data(
   target_lag = 45,
   labels = NULL,
   groups = NULL,
-  target_transform = c("dlog", "level")
+  target_transform = c("dlog", "level"),
+  roles = NULL
 )
 }
 \arguments{
@@ -41,6 +42,10 @@ quarter.}
 \item{labels, groups}{Optional named character vectors of labels and groups.}
 
 \item{target_transform}{`"dlog"` or `"level"`.}
+
+\item{roles}{Optional named character vector of cyclical roles
+(`"leading"`, `"coincident"`, `"lagging"`); other indicators get
+`"unknown"`. See [set_role()] and [roles_from_rcli()].}
 }
 \value{
 A [NowcastData-class] object.

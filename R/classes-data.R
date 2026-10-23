@@ -59,6 +59,9 @@ setValidity("NowcastData", function(object) {
     if (!all(object@meta$transform %in% c("dlog", "diff", "level"))) msg <- c(msg, "Unknown transform in `meta`.")
     bad_lag <- !is.finite(object@meta$release_lag) | object@meta$release_lag < 0
     if (any(bad_lag)) msg <- c(msg, "Release lags must be non-negative.")
+    if ("role" %in% names(object@meta) && !all(object@meta$role %in% indicator_roles)) {
+      msg <- c(msg, paste("Roles must be one of", paste(indicator_roles, collapse = ", ")))
+    }
   }
   if (length(msg)) msg else TRUE
 })
@@ -79,6 +82,9 @@ setValidity("NowcastData", function(object) {
 #' @param target_lag Release lag of the target in days after the end of the
 #'   quarter.
 #' @param labels,groups Optional named character vectors of labels and groups.
+#' @param roles Optional named character vector of cyclical roles
+#'   (`"leading"`, `"coincident"`, `"lagging"`); other indicators get
+#'   `"unknown"`. See [set_role()] and [roles_from_rcli()].
 #' @param target_transform `"dlog"` or `"level"`.
 #' @return A [NowcastData-class] object.
 #' @examples
@@ -87,7 +93,7 @@ setValidity("NowcastData", function(object) {
 #' @export
 nowcast_data <- function(monthly, quarterly, target, components = character(), transform = NULL,
                          release_lag = NULL, target_lag = 45, labels = NULL, groups = NULL,
-                         target_transform = c("dlog", "level")) {
+                         target_transform = c("dlog", "level"), roles = NULL) {
   target_transform <- match.arg(target_transform)
   monthly <- as.data.frame(monthly)
   quarterly <- as.data.frame(quarterly)
@@ -111,6 +117,7 @@ nowcast_data <- function(monthly, quarterly, target, components = character(), t
     label = if (is.null(labels)) ind else unname(ifelse(ind %in% names(labels), labels[ind], ind)),
     transform = unname(tr), release_lag = unname(lag),
     group = if (is.null(groups)) "indicator" else unname(ifelse(ind %in% names(groups), groups[ind], "indicator")),
+    role = if (is.null(roles)) "unknown" else unname(ifelse(ind %in% names(roles), roles[ind], "unknown")),
     stringsAsFactors = FALSE
   )
   methods::new("NowcastData",
@@ -131,11 +138,64 @@ move_date_first <- function(d) {
 
 #' Indicator names of a data object
 #' @param x A [NowcastData-class] object.
+#' @param role Optional roles to keep (`"leading"`, `"coincident"`,
+#'   `"lagging"`, `"unknown"`); see [set_role()].
 #' @return Character vector.
 #' @examples
-#' indicators(simulate_nowcast_data(seed = 1))
+#' sim <- simulate_nowcast_data(seed = 1)
+#' indicators(sim)
+#' indicators(set_role(sim, x1 = "coincident"), role = "coincident")
 #' @export
-indicators <- function(x) x@meta$name
+indicators <- function(x, role = NULL) {
+  if (is.null(role)) {
+    return(x@meta$name)
+  }
+  role <- match.arg(role, indicator_roles, several.ok = TRUE)
+  x@meta$name[roles(x) %in% role]
+}
+
+indicator_roles <- c("leading", "coincident", "lagging", "unknown")
+
+#' Cyclical roles of the indicators
+#'
+#' Indicators are leading, coincident or lagging relative to the cycle of
+#' the target (Burns and Mitchell 1946). The role decides how an indicator
+#' should enter a nowcasting model: coincident indicators describe the
+#' quarter being nowcast, leading indicators describe later quarters and can
+#' enter with a shift (see `shift` in [bridge_model()]), and lagging
+#' indicators mostly repeat what is already known. `set_role()` records the
+#' roles, `roles()` returns them and [roles_from_rcli()] takes them from a
+#' classification made with the 'rcli' package.
+#'
+#' @param x A [NowcastData-class] object.
+#' @param ... Named roles, for example `exports = "coincident"`.
+#' @return `set_role()` returns the updated object; `roles()` returns a
+#'   named character vector (`"unknown"` for indicators without a role).
+#' @seealso [roles_from_rcli()], [indicators()]
+#' @examples
+#' sim <- simulate_nowcast_data(seed = 1)
+#' sim <- set_role(sim, x1 = "coincident", x2 = "leading")
+#' roles(sim)
+#' @export
+set_role <- function(x, ...) {
+  v <- c(...)
+  check_names(names(v), indicators(x), "indicator")
+  bad <- setdiff(v, indicator_roles)
+  if (length(bad)) {
+    rinow_abort(sprintf("Unknown role: %s.", paste(bad, collapse = ", ")), "rinow_error_argument")
+  }
+  if (!"role" %in% names(x@meta)) x@meta$role <- "unknown"
+  x@meta$role[match(names(v), x@meta$name)] <- as.character(v)
+  methods::validObject(x)
+  x
+}
+
+#' @rdname set_role
+#' @export
+roles <- function(x) {
+  r <- if ("role" %in% names(x@meta)) x@meta$role else rep("unknown", nrow(x@meta))
+  stats::setNames(r, x@meta$name)
+}
 
 #' Change the release calendar or transformations
 #'
@@ -273,12 +333,14 @@ stationary_panel <- function(v, target = NULL, start = NULL) {
 # Quarterly regressor of one indicator for bridge-type models: the ragged edge
 # is filled by AR forecasts of the stationary series, levels are rebuilt,
 # averaged by quarter and turned into growth (dlog) or changes.
-bridge_regressor <- function(v, name, target, filled = NULL) {
+bridge_regressor <- function(v, name, target, filled = NULL, shift = 0L) {
   tr <- v@meta$transform[v@meta$name == name]
   target <- quarter_start(target)
   end_m <- seq(target, by = "month", length.out = 3L)[3L]
   dates <- seq(min(v@monthly$date), end_m, by = "month")
-  x <- v@monthly[[name]][match(dates, v@monthly$date)]
+  # shift > 0 moves the series later: the value used for month t is the one
+  # observed in month t - shift (lag-shifting of a leading indicator)
+  x <- v@monthly[[name]][match(add_months(dates, -shift), v@monthly$date)]
   if (tr == "dlog" && any(x <= 0, na.rm = TRUE)) tr <- "diff"
   obs <- which(!is.na(x))
   first <- min(obs)

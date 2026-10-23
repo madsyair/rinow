@@ -85,6 +85,20 @@ nowcast(bridge_model(c("cli", "cci")), vintage(dat, "2026-10-23"), "2026Q3")
 The composites are computed on final data, so pseudo real-time evaluations
 that use them are optimistic; `add_indicator()` prints a reminder.
 
+## Leading, coincident and lagging indicators
+
+Indicators can be tagged with their cyclical role, for example from the
+classification made by rcli, and models can be built by role:
+
+```r
+res <- cli_build(cli_candidates(panel, "reference", meta = meta), oecd_spec())
+dat <- roles_from_rcli(idn_nowcast, res)
+indicators(dat, role = "coincident")
+lead <- attr(dat, "leads")[indicators(dat, role = "leading")]
+bridge_model(indicators(dat, role = c("coincident", "leading")),
+             shift = pmin(round(lead), 3))
+```
+
 ## Extending
 
 Every model is an S4 class that extends `NowcastModel`. A new model needs a
