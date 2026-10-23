@@ -68,6 +68,23 @@ run_app()
 | Bottom-up (GDPNow-type) | `bottom_up_model()` | Higgins (2014) |
 | Combinations | `combination_model()`, `combine_nowcasts()` | Timmermann (2006) |
 
+## Composite indexes from rcli
+
+Composite leading (CLI) and coincident (CCI) indexes built with
+[rcli](https://github.com/madsyair/rcli) can serve as monthly indicators:
+
+```r
+library(rcli)
+cli <- cli_build(cli_candidates(panel, "reference", meta = meta))
+cci <- cci_build(cli)
+dat <- add_indicator(idn_nowcast, cli, "cli")
+dat <- add_indicator(dat, cci, "cci")
+nowcast(bridge_model(c("cli", "cci")), vintage(dat, "2026-10-23"), "2026Q3")
+```
+
+The composites are computed on final data, so pseudo real-time evaluations
+that use them are optimistic; `add_indicator()` prints a reminder.
+
 ## Extending
 
 Every model is an S4 class that extends `NowcastModel`. A new model needs a

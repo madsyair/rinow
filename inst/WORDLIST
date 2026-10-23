@@ -11,7 +11,12 @@ Banbura
 BayesDFMModel
 BottomUpModel
 BridgeModel
+CCI
+CMD
+CciResult
+CliResult
 CombinationModel
+CompositeIndex
 DFM
 DFMModel
 Diebold
@@ -45,6 +50,7 @@ Pedoman
 Pertumbuhan
 Petrella
 Primiceri
+SV
 Sinko
 Striaukas
 Syahrul
@@ -82,12 +88,15 @@ nowcasts
 org
 pdb
 pmtb
+rcli
 rf
 rssa
 runApp
+sg
 sglasso
 stlouisfed
 stochvol
+ts
 umidas
 xgb
 xgboost
