@@ -4,10 +4,13 @@
 \alias{indicators}
 \title{Indicator names of a data object}
 \usage{
-indicators(x)
+indicators(x, role = NULL)
 }
 \arguments{
 \item{x}{A [NowcastData-class] object.}
+
+\item{role}{Optional roles to keep (`"leading"`, `"coincident"`,
+`"lagging"`, `"unknown"`); see [set_role()].}
 }
 \value{
 Character vector.
@@ -16,5 +19,7 @@ Character vector.
 Indicator names of a data object
 }
 \examples{
-indicators(simulate_nowcast_data(seed = 1))
+sim <- simulate_nowcast_data(seed = 1)
+indicators(sim)
+indicators(set_role(sim, x1 = "coincident"), role = "coincident")
 }

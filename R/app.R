@@ -17,7 +17,12 @@ app_text <- function(language = c("id", "en")) {
     download_eval = "Unduh hasil evaluasi (CSV)", download_code = "Unduh skrip R",
     n_lags = "Lag bulanan", n_factors = "Banyak faktor", method = "Metode", clear = "Kosongkan daftar",
     no_models = "Belum ada model. Tambahkan pada langkah 4.", yoy = "Pertumbuhan y-o-y tersirat",
-    loaded = "Data dimuat.", combine = "Tambahkan kombinasi rata-rata"
+    loaded = "Data dimuat.", combine = "Tambahkan kombinasi rata-rata",
+    role = "Peran siklus", roles = c(
+      "Pendahulu" = "leading", "Sejalan" = "coincident", "Tertinggal" = "lagging", "Belum diketahui" = "unknown"
+    ),
+    pick_role = "Pilih indikator menurut peran", fill = "Isi indikator model",
+    shift = "Geser indikator pendahulu (bulan, persamaan jembatan)"
   )
   en <- list(
     title = "rinow: step-by-step nowcasting", step1 = "1. Data", step2 = "2. Release calendar",
@@ -34,7 +39,12 @@ app_text <- function(language = c("id", "en")) {
     download_eval = "Download evaluation (CSV)", download_code = "Download R script",
     n_lags = "Monthly lags", n_factors = "Number of factors", method = "Method", clear = "Clear list",
     no_models = "No model yet. Add one in step 4.", yoy = "Implied year-on-year growth",
-    loaded = "Data loaded.", combine = "Add mean combination"
+    loaded = "Data loaded.", combine = "Add mean combination",
+    role = "Cyclical role", roles = c(
+      "Leading" = "leading", "Coincident" = "coincident", "Lagging" = "lagging", "Unknown" = "unknown"
+    ),
+    pick_role = "Select indicators by role", fill = "Fill model indicators",
+    shift = "Shift leading indicators (months, bridge equation)"
   )
   if (language == "id") id else en
 }
@@ -46,11 +56,16 @@ model_choices <- c(
 )
 
 # Build a model from the interface inputs; returns the model and the R call as text.
-make_model <- function(type, ind, n_lags = 3, n_factors = 1, method = NULL) {
+make_model <- function(type, ind, n_lags = 3, n_factors = 1, method = NULL, shift = NULL) {
   q <- function(x) paste0("c(", paste0('"', x, '"', collapse = ", "), ")")
+  qs <- function(x) paste0("c(", paste0(names(x), " = ", x, collapse = ", "), ")")
   switch(type,
     ar = list(model = ar_model(), code = "ar_model()"),
-    bridge = list(model = bridge_model(ind), code = sprintf("bridge_model(%s)", q(ind))),
+    bridge = if (length(shift)) {
+      list(model = bridge_model(ind, shift = shift), code = sprintf("bridge_model(%s, shift = %s)", q(ind), qs(shift)))
+    } else {
+      list(model = bridge_model(ind), code = sprintf("bridge_model(%s)", q(ind)))
+    },
     umidas = list(model = midas_model(ind, n_lags), code = sprintf("midas_model(%s, n_lags = %d)", q(ind), n_lags)),
     nealmon = list(
       model = midas_model(ind, n_lags, "nealmon"),
@@ -98,8 +113,9 @@ app_ui <- function(language = "id") {
         tx$step2,
         shiny::fluidRow(
           shiny::column(4, shiny::selectInput("cal_ind", tx$indicator, choices = NULL)),
-          shiny::column(3, shiny::numericInput("cal_lag", tx$lag, 30, min = 0)),
-          shiny::column(3, shiny::selectInput("cal_tr", tx$transform, c("dlog", "diff", "level"))),
+          shiny::column(2, shiny::numericInput("cal_lag", tx$lag, 30, min = 0)),
+          shiny::column(2, shiny::selectInput("cal_tr", tx$transform, c("dlog", "diff", "level"))),
+          shiny::column(2, shiny::selectInput("cal_role", tx$role, tx$roles, selected = "unknown")),
           shiny::column(2, shiny::br(), shiny::actionButton("cal_apply", tx$apply))
         ),
         shiny::tableOutput("meta_table")
@@ -115,6 +131,11 @@ app_ui <- function(language = "id") {
           shiny::column(4, shiny::selectInput("model_type", tx$model_type, model_choices)),
           shiny::column(4, shiny::numericInput("n_lags", tx$n_lags, 3, min = 1, max = 12)),
           shiny::column(4, shiny::numericInput("n_factors", tx$n_factors, 1, min = 1, max = 5))
+        ),
+        shiny::fluidRow(
+          shiny::column(6, shiny::checkboxGroupInput("pick_role", tx$pick_role, tx$roles[1:3], inline = TRUE)),
+          shiny::column(2, shiny::br(), shiny::actionButton("fill_role", tx$fill)),
+          shiny::column(4, shiny::numericInput("shift_leading", tx$shift, 0, min = 0, max = 24))
         ),
         shiny::selectizeInput("model_ind", tx$indicators, choices = NULL, multiple = TRUE),
         shiny::actionButton("add_model", tx$add, class = "btn-primary"),
@@ -190,9 +211,12 @@ app_server <- function(language = "id") {
       shiny::req(rv$data, input$cal_ind)
       rv$data <- set_release_lag(rv$data, stats::setNames(input$cal_lag, input$cal_ind))
       rv$data <- set_transform(rv$data, stats::setNames(input$cal_tr, input$cal_ind))
+      role <- if (is.null(input$cal_role)) "unknown" else input$cal_role
+      rv$data <- set_role(rv$data, stats::setNames(role, input$cal_ind))
       rv$data_code <- c(
         rv$data_code, sprintf("dat <- set_release_lag(dat, %s = %s)", input$cal_ind, input$cal_lag),
-        sprintf("dat <- set_transform(dat, %s = \"%s\")", input$cal_ind, input$cal_tr)
+        sprintf("dat <- set_transform(dat, %s = \"%s\")", input$cal_ind, input$cal_tr),
+        if (role != "unknown") sprintf("dat <- set_role(dat, %s = \"%s\")", input$cal_ind, role)
       )
     })
     shiny::observeEvent(input$cal_ind, {
@@ -200,10 +224,17 @@ app_server <- function(language = "id") {
       i <- match(input$cal_ind, rv$data@meta$name)
       shiny::updateNumericInput(session, "cal_lag", value = rv$data@meta$release_lag[i])
       shiny::updateSelectInput(session, "cal_tr", selected = rv$data@meta$transform[i])
+      shiny::updateSelectInput(session, "cal_role", selected = roles(rv$data)[[i]])
+    })
+    shiny::observeEvent(input$fill_role, {
+      shiny::req(rv$data, length(input$pick_role) > 0)
+      shiny::updateSelectizeInput(session, "model_ind", selected = indicators(rv$data, role = input$pick_role))
     })
     output$meta_table <- shiny::renderTable({
       shiny::req(rv$data)
-      rv$data@meta
+      meta <- rv$data@meta
+      meta$role <- unname(roles(rv$data))
+      meta
     })
     vint <- shiny::reactive({
       shiny::req(rv$data, input$as_of)
@@ -217,7 +248,11 @@ app_server <- function(language = "id") {
       if (input$model_type != "ar" && !length(ind)) {
         return()
       }
-      mm <- make_model(input$model_type, ind, as.integer(input$n_lags), as.integer(input$n_factors))
+      lead <- intersect(ind, indicators(rv$data, role = "leading"))
+      sh <- if (input$model_type == "bridge" && isTRUE(input$shift_leading > 0) && length(lead)) {
+        stats::setNames(rep(as.integer(input$shift_leading), length(lead)), lead)
+      }
+      mm <- make_model(input$model_type, ind, as.integer(input$n_lags), as.integer(input$n_factors), shift = sh)
       rv$models <- c(rv$models, list(mm$model))
       rv$codes <- c(rv$codes, mm$code)
     })

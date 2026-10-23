@@ -23,10 +23,13 @@ setClass("ARModel", contains = "NowcastModel", representation(max_order = "numer
 #' @rdname NowcastModel-class
 #' @slot target_lag Logical; include the lagged target.
 #' @slot start First quarter of the estimation sample.
+#' @slot shift Named whole numbers of months by which indicators are moved
+#'   later (lag-shifting of leading indicators); empty when none.
 #' @exportClass BridgeModel
 setClass("BridgeModel",
   contains = "NowcastModel",
-  representation(target_lag = "logical", start = "Date")
+  representation(target_lag = "logical", start = "Date", shift = "numeric"),
+  prototype(shift = numeric())
 )
 
 #' @rdname NowcastModel-class

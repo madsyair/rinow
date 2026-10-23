@@ -16,6 +16,10 @@ setMethod("show", "NowcastData", function(object) {
     "  %d monthly indicators, %s to %s\n", nrow(object@meta), format(min(m$date), "%Y-%m"),
     format(max(m$date), "%Y-%m")
   ))
+  r <- table(factor(roles(object), indicator_roles))
+  if (any(r[c("leading", "coincident", "lagging")] > 0)) {
+    cat("  roles:", paste(r[r > 0], names(r)[r > 0], collapse = ", "), "\n")
+  }
   invisible(object)
 })
 
@@ -28,7 +32,10 @@ setMethod("show", "NowcastModel", function(object) {
   sl <- setdiff(methods::slotNames(object), c("name", "indicators", "models", "map"))
   for (s in sl) {
     val <- methods::slot(object, s)
-    if (length(val) && !is.list(val)) cat(sprintf("  %s: %s\n", s, paste(format(val), collapse = ", ")))
+    if (length(val) && !is.list(val)) {
+      txt <- if (is.null(names(val))) format(val) else paste0(names(val), " = ", format(val))
+      cat(sprintf("  %s: %s\n", s, paste(txt, collapse = ", ")))
+    }
   }
   if (methods::is(object, "CombinationModel")) {
     cat("  members:", paste(vapply(object@models, methods::slot, "", "name"), collapse = ", "), "\n")

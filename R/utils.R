@@ -84,6 +84,15 @@ period_end <- function(x, months = 1L) {
   as.Date(sprintf("%04d-%02d-01", y, m)) - 1L
 }
 
+# Shift first-of-month dates by k months (k may be negative)
+add_months <- function(x, k) {
+  if (!k) {
+    return(x)
+  }
+  m <- as.integer(format(x, "%Y")) * 12L + as.integer(format(x, "%m")) - 1L + as.integer(k)
+  as.Date(sprintf("%04d-%02d-01", m %/% 12L, m %% 12L + 1L))
+}
+
 format_quarter <- function(x) {
   x <- as_date(x)
   paste0(format(x, "%Y"), "Q", (as.integer(format(x, "%m")) - 1L) %/% 3L + 1L)

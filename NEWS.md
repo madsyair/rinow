@@ -1,5 +1,16 @@
 # rinow (development version)
 
+* Indicators now carry a cyclical role (leading, coincident, lagging or
+  unknown): `nowcast_data(roles = )`, `set_role()`, `roles()` and
+  `indicators(x, role = )`. `roles_from_rcli()` copies the classification
+  made by the 'rcli' package (optionally classifying rejected candidates by
+  their median lead), and `show()` reports the roles.
+* `bridge_model(shift = )` moves leading indicators later by a number of
+  months before quarterly aggregation (lag-shifting), using only data
+  released by the vintage date.
+* The interface records roles in step 2, fills the model indicators by role
+  in step 4 and can shift the leading indicators of a bridge equation.
+
 * New `add_indicator()` adds a monthly series to `NowcastData`, and the new
   generic `as_indicator()` turns monthly `ts` objects, data frames and
   composite indexes from the 'rcli' package (`CompositeIndex`, `CliResult`,

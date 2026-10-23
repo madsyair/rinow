@@ -91,28 +91,49 @@ setMethod("nowcast", "ARModel", function(model, data, target, as_of = NULL, ...)
 #' stationary monthly series before aggregation. When the previous quarter is
 #' not released, its growth is first predicted with the same equation.
 #'
+#' A leading indicator can enter with a shift: `shift = c(stocks = 3)` uses,
+#' for each month, the value of the stock index three months earlier, so that
+#' the quarter being nowcast is described by data that lead it and are
+#' already released (lag-shifting, as for the components of composite
+#' leading indicators in Gyomai and Guidetti 2012).
+#'
 #' @param indicators Monthly indicators.
 #' @param target_lag Include the lagged target?
 #' @param start First quarter of the estimation sample.
+#' @param shift Optional named whole numbers of months (0 to 24) by which
+#'   indicators are moved later, usually their lead over the target cycle.
 #' @param name Label.
 #' @return A `BridgeModel` object.
 #' @examples
 #' bridge_model(c("x1", "x2"))
+#' bridge_model(c("x1", "x2"), shift = c(x2 = 3))
 #' @export
-bridge_model <- function(indicators, target_lag = TRUE, start = "2002-01-01", name = "Bridge") {
+bridge_model <- function(indicators, target_lag = TRUE, start = "2002-01-01", shift = NULL, name = "Bridge") {
+  indicators <- as.character(indicators)
+  if (is.null(shift)) shift <- numeric()
+  if (length(shift)) {
+    if (is.null(names(shift)) || !all(names(shift) %in% indicators)) {
+      rinow_abort("`shift` must be named by indicators of the model.", "rinow_error_argument")
+    }
+    if (any(!is.finite(shift) | shift < 0 | shift > 24 | shift != round(shift))) {
+      rinow_abort("Shifts must be whole numbers of months from 0 to 24.", "rinow_error_argument")
+    }
+  }
   methods::new("BridgeModel",
-    name = name, indicators = as.character(indicators), target_lag = target_lag,
-    start = quarter_start(start)
+    name = name, indicators = indicators, target_lag = target_lag,
+    start = quarter_start(start), shift = stats::setNames(as.numeric(shift), names(shift))
   )
 }
 
-bridge_frame <- function(v, target, indicators, start) {
+
+
+bridge_frame <- function(v, target, indicators, start, shift = numeric()) {
   g <- target_growth(v@quarterly[[v@target]], v@target_transform)
   tq <- seq(min(v@quarterly$date), target, by = "quarter")
   d <- data.frame(date = tq, y = g[match(tq, v@quarterly$date)])
   d$y_lag <- c(NA, utils::head(d$y, -1L))
   for (k in indicators) {
-    r <- bridge_regressor(v, k, target)
+    r <- bridge_regressor(v, k, target, shift = if (k %in% names(shift)) shift[[k]] else 0L)
     d[[k]] <- r$value[match(tq, r$date)]
   }
   d
@@ -123,7 +144,7 @@ setMethod("nowcast", "BridgeModel", function(model, data, target, as_of = NULL, 
   v <- prepare_vintage(data, as_of)
   target <- check_target(v, target)
   check_names(model@indicators, indicators(v), "indicator")
-  d <- bridge_frame(v, target, model@indicators, model@start)
+  d <- bridge_frame(v, target, model@indicators, model@start, model@shift)
   form <- stats::reformulate(c(if (model@target_lag) "y_lag", model@indicators), "y")
   # the lag of the first estimation quarter comes from before `start`
   fit <- stats::lm(form, data = d[!is.na(d$y) & d$date >= model@start, ])

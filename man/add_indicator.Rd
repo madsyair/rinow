@@ -12,7 +12,8 @@ add_indicator(
   transform = NULL,
   label = name,
   group = NULL,
-  series = c("index", "cycle")
+  series = c("index", "cycle"),
+  role = NULL
 )
 }
 \arguments{
@@ -37,6 +38,10 @@ and `"indicator"` otherwise.}
 
 \item{series}{For 'rcli' objects: `"index"` or `"cycle"`, see
 [as_indicator()].}
+
+\item{role}{Cyclical role (see [set_role()]); by default `"coincident"`
+for a coincident index from 'rcli' (`CciResult`), `"leading"` for a
+leading index (`CliResult`) and `"unknown"` otherwise.}
 }
 \value{
 The [NowcastData-class] object with the new monthly column and

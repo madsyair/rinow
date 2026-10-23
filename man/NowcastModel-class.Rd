@@ -40,6 +40,9 @@ schedule. Create models with the constructors listed under *See also*.
 
 \item{\code{start}}{First quarter of the estimation sample.}
 
+\item{\code{shift}}{Named whole numbers of months by which indicators are moved
+later (lag-shifting of leading indicators); empty when none.}
+
 \item{\code{n_lags}}{Number of monthly lags per indicator.}
 
 \item{\code{weights}}{`"umidas"` or `"nealmon"`.}

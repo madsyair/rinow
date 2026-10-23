@@ -103,6 +103,9 @@ setMethod("as_indicator", "ANY", function(x, series = c("index", "cycle"), ...) 
 #' @param label Label shown in tables and the interface.
 #' @param group Group of the indicator; `"composite"` for 'rcli' composites
 #'   and `"indicator"` otherwise.
+#' @param role Cyclical role (see [set_role()]); by default `"coincident"`
+#'   for a coincident index from 'rcli' (`CciResult`), `"leading"` for a
+#'   leading index (`CliResult`) and `"unknown"` otherwise.
 #' @param series For 'rcli' objects: `"index"` or `"cycle"`, see
 #'   [as_indicator()].
 #' @return The [NowcastData-class] object with the new monthly column and
@@ -116,7 +119,7 @@ setMethod("as_indicator", "ANY", function(x, series = c("index", "cycle"), ...) 
 #' indicators(sim2)
 #' @export
 add_indicator <- function(data, x, name, release_lag = NULL, transform = NULL, label = name, group = NULL,
-                          series = c("index", "cycle")) {
+                          series = c("index", "cycle"), role = NULL) {
   if (!methods::is(data, "NowcastData")) rinow_abort("`data` must be a NowcastData object.", "rinow_error_argument")
   if (!is.na(data@as_of)) {
     rinow_abort("Add indicators to the final data, then take vintages.", "rinow_error_argument")
@@ -144,15 +147,20 @@ add_indicator <- function(data, x, name, release_lag = NULL, transform = NULL, l
     rinow_abort("`dlog` needs positive values; use `diff` instead.", "rinow_error_argument")
   }
   if (is.null(group)) group <- if (composite) "composite" else "indicator"
+  if (is.null(role)) {
+    role <- if (inherits(x, "CciResult")) "coincident" else if (inherits(x, "CliResult")) "leading" else "unknown"
+  }
+  role <- match.arg(role, indicator_roles)
   m <- data@monthly
   dates <- seq(min(m$date, s$date), max(m$date, s$date), by = "month")
   out <- data.frame(date = dates)
   for (k in setdiff(names(m), "date")) out[[k]] <- m[[k]][match(dates, m$date)]
   out[[name]] <- s$value[match(dates, s$date)]
   data@monthly <- out
+  if (!"role" %in% names(data@meta)) data@meta$role <- "unknown"
   data@meta <- rbind(data@meta, data.frame(
     name = name, label = label, transform = transform, release_lag = release_lag, group = group,
-    stringsAsFactors = FALSE
+    role = role, stringsAsFactors = FALSE
   )[names(data@meta)])
   methods::validObject(data)
   if (composite) {
@@ -162,4 +170,67 @@ add_indicator <- function(data, x, name, release_lag = NULL, transform = NULL, l
     )
   }
   data
+}
+
+#' Take indicator roles from an 'rcli' classification
+#'
+#' The 'rcli' package classifies candidate series as leading, coincident or
+#' lagging relative to a reference cycle, at turning points and by
+#' cross-correlation. `roles_from_rcli()` copies those classes into a
+#' [NowcastData-class] object, so that models can be built by role (see
+#' [indicators()] and `shift` in [bridge_model()]).
+#'
+#' `x` can be a `CliResult` or `CciResult`, a `LeadAssessment`, or a data
+#' frame with columns `name` and `class` (and optionally `median_lead`).
+#' Objects are recognised by their slots, so 'rinow' does not depend on
+#' 'rcli'. Candidates that 'rcli' rejected get the role `"unknown"`, or, with
+#' `use_timing = TRUE`, the role implied by their median lead at turning
+#' points: leading when it is at least `band` months, lagging when it is at
+#' most `-band` months, and coincident in between. Indicators missing from
+#' the classification keep their role.
+#'
+#' @param data A [NowcastData-class] object.
+#' @param x An 'rcli' result or assessment, or a data frame.
+#' @param use_timing Classify rejected candidates by their median lead?
+#' @param band Months of lead or lag that separate the roles when
+#'   `use_timing = TRUE`.
+#' @return The updated [NowcastData-class] object. The attribute `"leads"`
+#'   holds the median leads (months) of the classified indicators when `x`
+#'   has them, a convenient start for `shift` in [bridge_model()].
+#' @seealso [set_role()], [roles()]
+#' @examples
+#' sim <- simulate_nowcast_data(seed = 1)
+#' tab <- data.frame(
+#'   name = c("x1", "x2", "x3"), class = c("coincident", "leading", "rejected"),
+#'   median_lead = c(0, 3, -4)
+#' )
+#' roles(roles_from_rcli(sim, tab))
+#' roles(roles_from_rcli(sim, tab, use_timing = TRUE))
+#' @export
+roles_from_rcli <- function(data, x, use_timing = FALSE, band = 2) {
+  if (!methods::is(data, "NowcastData")) rinow_abort("`data` must be a NowcastData object.", "rinow_error_argument")
+  tab <- x
+  if (isS4(tab) && "assessment" %in% methods::slotNames(tab)) tab <- methods::slot(tab, "assessment")
+  if (isS4(tab) && "table" %in% methods::slotNames(tab)) tab <- methods::slot(tab, "table")
+  if (!is.data.frame(tab) || !all(c("name", "class") %in% names(tab))) {
+    rinow_abort(
+      "`x` must be an 'rcli' result or assessment, or a data frame with columns `name` and `class`.",
+      "rinow_error_argument"
+    )
+  }
+  if (length(band) != 1L || !is.finite(band) || band <= 0) {
+    rinow_abort("`band` must be one positive number.", "rinow_error_argument")
+  }
+  tab <- tab[tab$name %in% indicators(data), , drop = FALSE]
+  if (!nrow(tab)) rinow_abort("No indicator of `data` appears in the classification.", "rinow_error_data")
+  cls <- as.character(tab$class)
+  role <- ifelse(cls %in% c("leading", "coincident", "lagging"), cls, "unknown")
+  if (use_timing && "median_lead" %in% names(tab)) {
+    ml <- tab$median_lead
+    by_timing <- ifelse(is.na(ml), "unknown", ifelse(ml >= band, "leading", ifelse(ml <= -band, "lagging", "coincident")))
+    role <- ifelse(role == "unknown", by_timing, role)
+  }
+  out <- do.call(set_role, c(list(data), as.list(stats::setNames(role, tab$name))))
+  if ("median_lead" %in% names(tab)) attr(out, "leads") <- stats::setNames(tab$median_lead, tab$name)
+  out
 }
