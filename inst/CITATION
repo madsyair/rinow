@@ -1,0 +1,12 @@
+bibentry(
+  bibtype = "Manual",
+  title = "{rinow}: Nowcasting of Indicators from Data Preparation to Evaluation",
+  author = person("Achmad Syahrul", "Choir"),
+  year = "2026",
+  note = paste("R package version", meta$Version),
+  url = "https://github.com/madsyair/rinow",
+  textVersion = paste0(
+    "Choir, A. S. (2026). rinow: Nowcasting of Indicators from Data Preparation to Evaluation. ",
+    "R package version ", meta$Version, ". https://github.com/madsyair/rinow"
+  )
+)

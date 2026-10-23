@@ -1,0 +1,71 @@
+---
+title: "Nowcasting with rinow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Nowcasting with rinow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4)
+has_dfms <- requireNamespace("dfms", quietly = TRUE)
+```
+
+`rinow` organises a nowcasting system in three steps: data with a release
+calendar, model specifications, and pseudo real-time evaluation. This vignette
+uses simulated data; the same code works on the Indonesian example
+`idn_nowcast`.
+
+## Data and vintages
+
+```{r}
+library(rinow)
+sim <- simulate_nowcast_data(n_years = 16, seed = 11)
+sim
+v <- vintage(sim, "2015-08-20")
+ragged_edge(v)
+```
+
+`vintage()` keeps only what was released by the information date, so the
+indicators end in different months: this is the ragged edge.
+
+## Models
+
+Every model is a specification object; `nowcast()` applies it to a vintage.
+
+```{r}
+models <- list(ar_model(), bridge_model(c("x1", "x2")), midas_model(c("x1", "x3"), n_lags = 3),
+               factor_model(c("x1", "x2", "x3")))
+res <- lapply(models, nowcast, data = v, target = "2015Q3")
+do.call(rbind, lapply(res, as.data.frame))
+```
+
+A bridge nowcast splits into contributions:
+
+```{r}
+plot(res[[2]])
+```
+
+```{r, eval = has_dfms}
+nowcast(dfm_model(c("x1", "x2", "x3")), v, "2015Q3")
+```
+
+## Pseudo real-time evaluation
+
+```{r}
+s <- nowcast_schedule("2011Q1", "2015Q2")
+ev <- lapply(models, evaluate, data = sim, schedule = s)
+ev <- c(ev, list(combine_nowcasts(ev, method = "mean")))
+accuracy(ev)[, c("model", "position", "rmse", "mae", "n")]
+dm_test(ev[[2]], ev[[1]])
+```
+
+Accuracy improves from `M1` to `B` as more of the quarter's data arrive; the
+Diebold-Mariano test compares the bridge equation with the AR benchmark.
+
+## Interface
+
+`run_app()` opens a step-by-step 'shiny' interface (Indonesian by default,
+`run_app("en")` for English) that covers the same workflow and exports an R
+script reproducing the analysis.

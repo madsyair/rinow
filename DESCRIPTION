@@ -1,0 +1,68 @@
+Package: rinow
+Type: Package
+Title: Nowcasting of Indicators from Data Preparation to Evaluation
+Version: 0.1.0
+Authors@R: c(
+    person("Achmad Syahrul", "Choir", email = "madsyair@stis.ac.id",
+           role = c("aut", "cre", "cph"))
+    )
+Description: Nowcasts a quarterly indicator, such as economic growth, from
+    monthly indicators with one object-oriented interface that covers every
+    stage of a nowcasting system: indicator metadata and release calendars,
+    pseudo real-time data vintages with ragged edges, stationary
+    transformations and temporal aggregation as in Mariano and Murasawa
+    (2003) <doi:10.1002/jae.695>, and a common set of models. The models are
+    bridge equations as in Baffigi, Golinelli and Parigi (2004)
+    <doi:10.1016/S0169-2070(03)00067-0>, mixed data sampling regressions
+    (Ghysels, Sinko and Valkanov (2007) <doi:10.1080/07474930600972467>;
+    Foroni, Marcellino and Schumacher (2015) <doi:10.1111/rssa.12043>),
+    diffusion indexes as in Stock and Watson (2002)
+    <doi:10.1198/073500102317351921>, mixed-frequency dynamic factor models
+    estimated with the Kalman filter as in Banbura and Modugno (2014)
+    <doi:10.1002/jae.2306>, Bayesian vector autoregressions with
+    conditional forecasts as in Giannone, Lenza and Primiceri (2015)
+    <doi:10.1162/REST_a_00483>, a Bayesian dynamic factor model with
+    Student-t errors and stochastic volatility in the spirit of
+    Antolin-Diaz, Drechsel and Petrella (2024)
+    <doi:10.1016/j.jeconom.2023.105634>, machine-learning regressions as in
+    Babii, Ghysels and Striaukas (2022) <doi:10.1080/07350015.2021.1899933>,
+    and a bottom-up model that nowcasts expenditure components and
+    aggregates them like the Atlanta Fed's GDPNow. Every model is evaluated
+    in pseudo real time with the same schedule, accuracy measures,
+    Diebold-Mariano tests with the correction of Harvey, Leybourne and
+    Newbold (1997) <doi:10.1016/S0169-2070(96)00719-4>, and forecast
+    combinations. An optional 'shiny' interface runs the workflow step by
+    step. Example data for Indonesia are included. The name stands for
+    nowcasting of indicators using R.
+License: GPL (>= 3)
+URL: https://github.com/madsyair/rinow
+BugReports: https://github.com/madsyair/rinow/issues
+Encoding: UTF-8
+Language: en-GB
+Depends:
+    R (>= 4.1.0)
+Imports:
+    graphics,
+    methods,
+    parallel,
+    stats,
+    utils
+Suggests:
+    BVAR,
+    dfms,
+    forecast,
+    glmnet,
+    knitr,
+    Matrix,
+    midasml,
+    midasr,
+    ranger,
+    rmarkdown,
+    shiny,
+    stochvol,
+    testthat (>= 3.0.0),
+    xgboost
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+LazyData: true
+Config/roxygen2/version: 8.1.1

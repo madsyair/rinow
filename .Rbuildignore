@@ -1,0 +1,15 @@
+^data-raw$
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^\.lintr$
+^check$
+^LICENSE\.md$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^\.github$
+^codecov\.yml$
+^_pkgdown\.yml$
+^docs$
+^\.gitignore$
+^\.git$

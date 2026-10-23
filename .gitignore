@@ -1,0 +1,8 @@
+.Rproj.user
+.Rhistory
+.RData
+inst/doc
+docs
+tests/testthat/Rplots.pdf
+*.Rcheck
+*.tar.gz
